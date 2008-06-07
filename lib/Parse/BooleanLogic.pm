@@ -27,67 +27,9 @@ Request Tracker for parsing SQL like expressions and it's still capable to, but
 it can be used to parse other boolean logic sentences with OPERANDs joined using
 binary OPERATORs and grouped and nested using parentheses (OPEN_PAREN and CLOSE_PAREN).
 
-=head1 METHODS
-
-=head2 as_array
-
-Takes a string and parses it into perl structure, where parentheses represented using
-array references, operands are hash references with one key/value pair: operand,
-when binary operators are simple scalars. So string C<x = 10 OR (x > 20 AND x < 30)>
-is parsed into the following structure:
-
-    [
-        { operand => 'x = 10' },
-        'OR',
-        [
-            { operand => 'x > 20' },
-            'AND',
-            { operand => 'x < 30' },
-        ]
-    ]
-
-=head2 parse
-
-Takes named arguments: string and callback. Where the first one is scalar with
-expression, the latter is a reference to hash with callbacks: open_paren, operator
-operand, close_paren and error. Callback for errors is optional and parser dies if
-it's omitted. Each callback is called when parser finds corresponding element in the
-string. In all cases the current match is passed as argument into the callback.
-
-Here is simple example based on L</as_array> method:
-
-    # result tree and the current group
-    my ($tree, $node);
-    $tree = $node = [];
-
-    # stack with nested groups, outer most in the bottom, inner on the top
-    my @pnodes = ();
-
-    my %callback;
-    # on open_paren put the current group on top of the stack,
-    # create new empty group and at the same time put it into
-    # the end of previous one
-    $callback{'open_paren'} = sub {
-        push @pnodes, $node;
-        push @{ $pnodes[-1] }, $node = []
-    };
-
-    # on close_paren just switch to previous group by taking it
-    # from the top of the stack
-    $callback{'close_paren'}     = sub { $node = pop @pnodes };
-
-    # push binary operators as is and operands as hash references
-    $callback{'operator'} = sub { push @$node, $_[0] };
-    $callback{'operand'}       = sub { push @$node, { operand => $_[0] } };
-
-    # run parser
-    $parser->parse( string => $string, callback => \%callback );
-
-    return $tree;
-
-Using this method you can build other representations of an expression.
-
 =cut
+
+
 
 use strict;
 use warnings;
@@ -111,10 +53,52 @@ my $re_tokens      = qr{(?:$re_operator|$re_open_paren|$re_close_paren)};
 my $re_delim       = qr{$RE{delimited}{-delim=>qq{\'\"}}};
 my $re_operand     = qr{(?!\s)(?:$re_delim|(?!$re_tokens|["']).+?(?=$re_tokens|["']|\Z))+};
 
+=head1 METHODS
+
+=head2 new
+
+Very simple constructor, returns a new object. Now takes no options and most
+methods can be executed as class methods too, however there are plans to
+change it and using this lightweight constructor is recommended.
+
+=cut
+
 sub new {
     my $proto = shift;
     return bless {@_}, ref($proto) || $proto;
 }
+
+
+=head2 Parsing expressions
+
+=head3 as_array $string [ %options ]
+
+Takes a string and parses it into perl structure, where parentheses represented using
+array references, operands are hash references with one key/value pair: operand,
+when binary operators are simple scalars. So string C<x = 10 OR (x > 20 AND x < 30)>
+is parsed into the following structure:
+
+    [
+        { operand => 'x = 10' },
+        'OR',
+        [
+            { operand => 'x > 20' },
+            'AND',
+            { operand => 'x < 30' },
+        ]
+    ]
+
+Aditional options:
+
+=over 4
+
+=item operand_cb - custom operands handler
+
+=item error_cb - custom errors handler
+
+=back
+
+=cut
 
 { # static variables
 
@@ -149,6 +133,49 @@ sub as_array {
     $self->parse(string => $string, callback => \%cb);
     return $tree;
 } }
+
+=head3 parse
+
+Takes named arguments: string and callback. Where the first one is scalar with
+expression, the latter is a reference to hash with callbacks: open_paren, operator
+operand, close_paren and error. Callback for errors is optional and parser dies if
+it's omitted. Each callback is called when parser finds corresponding element in the
+string. In all cases the current match is passed as argument into the callback.
+
+Here is simple example based on L</as_array> method:
+
+    # result tree and the current group
+    my ($tree, $node);
+    $tree = $node = [];
+
+    # stack with nested groups, outer most in the bottom, inner on the top
+    my @pnodes = ();
+
+    my %callback;
+    # on open_paren put the current group on top of the stack,
+    # create new empty group and at the same time put it into
+    # the end of previous one
+    $callback{'open_paren'} = sub {
+        push @pnodes, $node;
+        push @{ $pnodes[-1] }, $node = []
+    };
+
+    # on close_paren just switch to previous group by taking it
+    # from the top of the stack
+    $callback{'close_paren'} = sub { $node = pop @pnodes };
+
+    # push binary operators as is and operands as hash references
+    $callback{'operator'} = sub { push @$node, $_[0] };
+    $callback{'operand'}  = sub { push @$node, { operand => $_[0] } };
+
+    # run parser
+    $parser->parse( string => $string, callback => \%callback );
+
+    return $tree;
+
+Using this method you can build other representations of an expression.
+
+=cut
 
 sub parse {
     my $self = shift;
@@ -244,6 +271,81 @@ sub bitmask_to_string {
     my $tmp = join ', ', splice @res, 0, -1;
     unshift @res, $tmp if $tmp;
     return join ' or ', @res;
+}
+
+=head2 Tree modifications
+
+Several functions taking a tree of boolean expressions as returned by
+as_array method and changing it using a callback.
+
+=head3 filter $tree $callback
+
+Returns sub-tree where only operands left for which the callback returned
+true value.
+
+=cut
+
+sub filter {
+    my ($self, $tree, $cb, $inner) = @_;
+
+    my $skip_next = 0;
+
+    my @res;
+    foreach my $entry ( @$tree ) {
+        next if $skip_next-- > 0;
+
+        if ( ref $entry eq 'ARRAY' ) {
+            my $tmp = $self->filter( $entry, $cb, 1 );
+            if ( !$tmp || (ref $tmp eq 'ARRAY' && !@$tmp) ) {
+                pop @res;
+                $skip_next = 1 unless @res;
+            } else {
+                push @res, $tmp;
+            }
+        } elsif ( ref $entry eq 'HASH' ) {
+            if ( $cb->( $entry ) ) {
+                push @res, $entry;
+            } else {
+                pop @res;
+                $skip_next = 1 unless @res;
+            }
+        } else {
+            push @res, $entry;
+        }
+    }
+    return $res[0] if @res == 1 && ($inner || ref $res[0] eq 'ARRAY');
+    return \@res;
+}
+
+=head3 solve $tree $callback
+
+Returns sub-tree where only operands left for which the callback returned
+true value.
+
+=cut
+
+sub solve {
+    my ($self, $tree, $cb) = @_;
+
+    my $skip_next = 0;
+
+    my ($res, $ea) = (0, 'OR');
+
+    foreach my $entry ( @$tree ) {
+        next if $skip_next-- > 0;
+        unless ( ref $entry ) {
+
+        }
+
+        if ( ref $entry eq 'ARRAY' ) {
+            my $tmp = $self->solve( $entry, $cb, 1 );
+        } elsif ( ref $entry eq 'HASH' ) {
+            my $tmp = $cb->( $entry );
+        } else {
+            push @res, $entry;
+        }
+    }
+    return $res;
 }
 
 1;
