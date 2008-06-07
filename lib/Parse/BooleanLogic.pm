@@ -1,4 +1,3 @@
-
 =head1 NAME
 
 Parse::BooleanLogic - parser of boolean expressions
@@ -36,7 +35,7 @@ use warnings;
 
 package Parse::BooleanLogic;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use constant OPERAND     => 1;
 use constant OPERATOR    => 2;

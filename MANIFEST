@@ -12,3 +12,4 @@ MANIFEST			This list of files
 META.yml
 t/basics.t
 t/load.t
+t/solve.t
