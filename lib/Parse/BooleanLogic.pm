@@ -327,25 +327,28 @@ true value.
 sub solve {
     my ($self, $tree, $cb) = @_;
 
-    my $skip_next = 0;
-
-    my ($res, $ea) = (0, 'OR');
-
+    my ($res, $ea, $skip_next) = (0, 'OR', 0);
     foreach my $entry ( @$tree ) {
         next if $skip_next-- > 0;
         unless ( ref $entry ) {
-
+            $ea = $entry;
+            $skip_next++ if ($res && $ea eq 'OR') || (!$res && $ea eq 'AND');
+            next;
         }
 
+        my $cur;
         if ( ref $entry eq 'ARRAY' ) {
-            my $tmp = $self->solve( $entry, $cb, 1 );
-        } elsif ( ref $entry eq 'HASH' ) {
-            my $tmp = $cb->( $entry );
+            $cur = $self->solve( $entry, $cb, 1 );
         } else {
-            push @res, $entry;
+            $cur = $cb->( $entry );
+        }
+        if ( $ea eq 'OR' ) {
+            $res ||= $cur;
+        } else {
+            $res &&= $cur;
         }
     }
-    return $res;
+    return $res? 1 : 0;
 }
 
 1;
