@@ -44,9 +44,9 @@ use constant CLOSE_PAREN => 8;
 my @tokens = qw[OPERAND OPERATOR OPEN_PAREN CLOSE_PAREN];
 
 use Regexp::Common qw(delimited);
-my $re_operator    = qr[(?i:AND|OR)];
-my $re_open_paren  = qr[\(];
-my $re_close_paren = qr[\)];
+my $re_operator    = qr{\b(?i:AND|OR)\b};
+my $re_open_paren  = qr{\(};
+my $re_close_paren = qr{\)};
 
 my $re_tokens      = qr{(?:$re_operator|$re_open_paren|$re_close_paren)};
 my $re_delim       = qr{$RE{delimited}{-delim=>qq{\'\"}}};

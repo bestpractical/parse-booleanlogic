@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 11;
+use Test::More tests => 14;
 use Test::Deep;
 
 use_ok 'Parse::BooleanLogic';
@@ -67,4 +67,19 @@ parse_cmp
 parse_cmp
     '"OR" OR string',
     [{ operand => '"OR"' }, 'OR', { operand => 'string' }],
+;
+
+parse_cmp
+    "recORd = 3",
+    [{ operand => "recORd = 3" }],
+;
+
+parse_cmp
+    "op ORheading = 3",
+    [{ operand => "op ORheading = 3" }],
+;
+
+parse_cmp
+    "operAND",
+    [{ operand => "operAND" }],
 ;
