@@ -1,0 +1,21 @@
+0.04 2008-09-16
+
+    * fsolve method - filter+solve in one
+    * fix problems with boolean operators (AND/OR)
+      in the middle of an operand
+    * parsing speed improvements, almost complete rewrite
+    * fix skip_next logic in solve and filter
+    * cover filter, solve and fsolve with tests
+    * update docs
+
+0.03 2008-06-08
+
+    * filter and solve methods
+    * constructor
+    * doc updates
+    * some incompatible API changes
+
+0.02 2007-11-03
+
+    * initial release
+
