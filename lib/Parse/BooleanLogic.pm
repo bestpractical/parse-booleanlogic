@@ -364,7 +364,50 @@ sub solve {
             $res &&= $cur;
         }
     }
-    return $res? 1 : 0;
+    return $res;
+}
+
+=head3 fsolve $tree $callback
+
+Does in filter+solve in one go. Callback can return undef to filter out an operand,
+and a defined boolean value to be used in solve.
+
+Returns boolean result of the equation or undef if all operands have been filtered.
+
+See also L</filter> and L</solve>.
+
+=cut
+
+sub fsolve {
+    my ($self, $tree, $cb) = @_;
+
+    my ($res, $ea, $skip_next) = (undef, 'OR', 0);
+    foreach my $entry ( @$tree ) {
+        $skip_next-- and next if $skip_next > 0;
+        unless ( ref $entry ) {
+            $ea = $entry;
+            $skip_next++ if ($res && $ea eq 'OR') || (!$res && $ea eq 'AND');
+            next;
+        }
+
+        my $cur;
+        if ( ref $entry eq 'ARRAY' ) {
+            $cur = $self->fsolve( $entry, $cb );
+        } else {
+            $cur = $cb->( $entry );
+        }
+        if ( defined $cur ) {
+            $res ||= 0;
+            if ( $ea eq 'OR' ) {
+                $res ||= $cur;
+            } else {
+                $res &&= $cur;
+            }
+        } else {
+            $skip_next++ unless defined $res;
+        }
+    }
+    return $res;
 }
 
 1;
