@@ -291,13 +291,13 @@ sub filter {
 
     my @res;
     foreach my $entry ( @$tree ) {
-        next if $skip_next-- > 0;
+        $skip_next-- and next if $skip_next > 0;
 
         if ( ref $entry eq 'ARRAY' ) {
             my $tmp = $self->filter( $entry, $cb, 1 );
             if ( !$tmp || (ref $tmp eq 'ARRAY' && !@$tmp) ) {
                 pop @res;
-                $skip_next = 1 unless @res;
+                $skip_next++ unless @res;
             } else {
                 push @res, $tmp;
             }
@@ -306,7 +306,7 @@ sub filter {
                 push @res, $entry;
             } else {
                 pop @res;
-                $skip_next = 1 unless @res;
+                $skip_next++ unless @res;
             }
         } else {
             push @res, $entry;
@@ -345,7 +345,7 @@ sub solve {
 
     my ($res, $ea, $skip_next) = (0, 'OR', 0);
     foreach my $entry ( @$tree ) {
-        next if $skip_next-- > 0;
+        $skip_next-- and next if $skip_next > 0;
         unless ( ref $entry ) {
             $ea = $entry;
             $skip_next++ if ($res && $ea eq 'OR') || (!$res && $ea eq 'AND');
@@ -354,7 +354,7 @@ sub solve {
 
         my $cur;
         if ( ref $entry eq 'ARRAY' ) {
-            $cur = $self->solve( $entry, $cb, 1 );
+            $cur = $self->solve( $entry, $cb );
         } else {
             $cur = $cb->( $entry );
         }
