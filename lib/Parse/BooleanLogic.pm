@@ -41,7 +41,8 @@ use constant OPERAND     => 1;
 use constant OPERATOR    => 2;
 use constant OPEN_PAREN  => 4;
 use constant CLOSE_PAREN => 8;
-my @tokens = qw[OPERAND OPERATOR OPEN_PAREN CLOSE_PAREN];
+use constant STOP        => 16;
+my @tokens = qw[OPERAND OPERATOR OPEN_PAREN CLOSE_PAREN STOP];
 
 use Regexp::Common qw(delimited);
 my $re_operator    = qr{\b(?i:AND|OR)\b};
@@ -50,7 +51,7 @@ my $re_close_paren = qr{\)};
 
 my $re_tokens      = qr{(?:$re_operator|$re_open_paren|$re_close_paren)};
 my $re_delim       = qr{$RE{delimited}{-delim=>qq{\'\"}}};
-my $re_operand     = qr{(?!\s)(?:$re_delim|(?!$re_tokens|["']).+?(?=$re_tokens|["']|\Z))+};
+my $re_operand     = qr{(?:$re_delim|(?!$re_tokens|["']).+?(?=$re_tokens|["']|\Z))+};
 
 =head1 METHODS
 
@@ -186,66 +187,52 @@ sub parse {
     my ($string, $cb) = @args{qw(string callback)};
     $string = '' unless defined $string;
 
-    my $want = OPERAND | OPEN_PAREN;
+    # States
+    my $want = OPERAND | OPEN_PAREN | STOP;
     my $last = 0;
-
     my $depth = 0;
 
-    while ( $string =~ /(
-                        $re_operator
-                        |$re_open_paren
-                        |$re_close_paren
-                        |$re_operand
-                       )/iogx )
-    {
-        my $match = $1;
-        next if $match =~ /^\s*$/;
-
-        # Highest priority is last
-        my $current = 0;
-        $current = OPERAND     if ($want & OPERAND)     && $match =~ /^$re_operand$/io;
-        $current = OPERATOR    if ($want & OPERATOR)    && $match =~ /^$re_operator$/io;
-        $current = OPEN_PAREN  if ($want & OPEN_PAREN)  && $match =~ /^$re_open_paren$/io;
-        $current = CLOSE_PAREN if ($want & CLOSE_PAREN) && $match =~ /^$re_close_paren$/io;
-
-        unless ($current && $want & $current) {
-            my $tmp = substr($string, 0, pos($string)- length($match));
-            $tmp .= '>'. $match .'<--here'. substr($string, pos($string));
-            my $msg = "Wrong expression, expecting a ". $self->bitmask_to_string($want) ." in '$tmp'";
-            $cb->{'error'}? $cb->{'error'}->($msg): die $msg;
-            return;
+    while (1) {
+        # State Machine
+        if ( ($want & OPERAND    ) && $string =~ /\G\s*($re_operand)/iogc ) {
+            my $m = $1;
+            $m=~ s/\s+$//;
+            $cb->{'operand'}->( $m );
+            $last = OPERAND;
+            $want = OPERATOR;
+            $want |= $depth? CLOSE_PAREN : STOP;
         }
-
-        # State Machine:
-        if ( $current & OPEN_PAREN ) {
-            $cb->{'open_paren'}->( $match );
+        elsif ( ($want & OPERATOR   ) && $string =~ /\G\s*($re_operator)/iogc ) {
+            $cb->{'operator'}->( $1 );
+            $last = OPERATOR;
+            $want = OPERAND | OPEN_PAREN;
+        }
+        elsif ( ($want & OPEN_PAREN ) && $string =~ /\G\s*($re_open_paren)/iogc ) {
+            $cb->{'open_paren'}->( $1 );
             $depth++;
+            $last = OPEN_PAREN;
             $want = OPERAND | OPEN_PAREN;
         }
-        elsif ( $current & CLOSE_PAREN ) {
-            $cb->{'close_paren'}->( $match );
+        elsif ( ($want & CLOSE_PAREN) && $string =~ /\G\s*($re_close_paren)/iogc ) {
+            $cb->{'close_paren'}->( $1 );
             $depth--;
+            $last = CLOSE_PAREN;
             $want = OPERATOR;
-            $want |= CLOSE_PAREN if $depth;
+            $want |= $depth? CLOSE_PAREN : STOP;
         }
-        elsif ( $current & OPERATOR ) {
-            $cb->{'operator'}->( $match );
-            $want = OPERAND | OPEN_PAREN;
+        elsif ( ($want & STOP) && $string =~ /\G\s*$/igc ) {
+            $last = STOP;
+            last;
         }
-        elsif ( $current & OPERAND ) {
-            $match =~ s/\s+$//;
-            $cb->{'operand'}->( $match );
-            $want = OPERATOR;
-            $want |= CLOSE_PAREN if $depth;
+        else {
+            last;
         }
-
-        $last = $current;
     }
 
-    unless ( !$last || $last & (CLOSE_PAREN | OPERAND) ) {
-        my $msg = "Incomplete query, last element ("
-            . $self->bitmask_to_string($last)
-            . ") is not CLOSE_PAREN or OPERAND in '$string'";
+    if (!$last || !($want & $last)) {
+        my $tmp = substr( $string, 0, pos($string) );
+        $tmp .= '>>>here<<<'. substr($string, pos($string));
+        my $msg = "Incomplete or incorrect expression, expecting a ". $self->bitmask_to_string($want) ." in '$tmp'";
         $cb->{'error'}? $cb->{'error'}->($msg): die $msg;
         return;
     }
