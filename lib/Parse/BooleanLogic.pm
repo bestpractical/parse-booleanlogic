@@ -262,12 +262,25 @@ sub bitmask_to_string {
 =head2 Tree modifications
 
 Several functions taking a tree of boolean expressions as returned by
-as_array method and changing it using a callback.
+L<as_array> method and changing it using a callback.
 
 =head3 filter $tree $callback
 
-Returns sub-tree where only operands left for which the callback returned
-true value.
+Filters a tree using provided callback. The callback is called for each operand
+in the tree and operand is left when it returns true value.
+
+Boolean operators (AND/OR) are skipped according to parens and left first rule,
+for example:
+
+    X OR Y AND Z -> X AND Z
+    X OR (Y AND Z) -> X OR Z
+    X OR Y AND Z -> Y AND Z
+    X OR (Y AND Z) -> Y AND Z
+    X OR Y AND Z -> X OR Y
+    X OR (Y AND Z) -> X OR Y
+
+Returns new sub-tree. Original tree is not changed, but operands in new tree
+still refer to the same hashes in original.
 
 =cut
 
@@ -305,8 +318,25 @@ sub filter {
 
 =head3 solve $tree $callback
 
-Returns sub-tree where only operands left for which the callback returned
-true value.
+Solves a boolean expression using provided callback. Callback is called
+for operands and should return a boolean value.
+
+Functions matrixes:
+
+    A B AND OR
+    0 0 0   0
+    0 1 0   1
+    1 0 0   1
+    1 1 1   1
+
+Whole branches of the tree can be skipped when result is obvious, for example:
+
+    1 OR  (...)
+    0 AND (...)
+
+Returns result of the expression.
+
+See also L</fsolve>.
 
 =cut
 
