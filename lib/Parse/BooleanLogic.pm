@@ -445,12 +445,14 @@ See also L</fsolve>.
 sub solve {
     my ($self, $tree, $cb) = @_;
 
-    my ($res, $ea, $skip_next) = (0, 'OR', 0);
+    my ($res, $ea, $skip_next) = (0, $self->{'operators'}[1], 0);
     foreach my $entry ( @$tree ) {
         $skip_next-- and next if $skip_next > 0;
         unless ( ref $entry ) {
-            $ea = $entry;
-            $skip_next++ if ($res && $ea eq 'OR') || (!$res && $ea eq 'AND');
+            $ea = lc $entry;
+            $skip_next++ if
+                   ( $res && $ea eq $self->{'operators'}[1])
+                || (!$res && $ea eq $self->{'operators'}[0]);
             next;
         }
 
@@ -460,7 +462,7 @@ sub solve {
         } else {
             $cur = $cb->( $entry );
         }
-        if ( $ea eq 'OR' ) {
+        if ( $ea eq $self->{'operators'}[1] ) {
             $res ||= $cur;
         } else {
             $res &&= $cur;
@@ -483,12 +485,14 @@ See also L</filter> and L</solve>.
 sub fsolve {
     my ($self, $tree, $cb) = @_;
 
-    my ($res, $ea, $skip_next) = (undef, 'OR', 0);
+    my ($res, $ea, $skip_next) = (undef, $self->{'operators'}[1], 0);
     foreach my $entry ( @$tree ) {
         $skip_next-- and next if $skip_next > 0;
         unless ( ref $entry ) {
-            $ea = $entry;
-            $skip_next++ if ($res && $ea eq 'OR') || (!$res && $ea eq 'AND');
+            $ea = lc $entry;
+            $skip_next++ if
+                   ( $res && $ea eq $self->{'operators'}[1])
+                || (!$res && $ea eq $self->{'operators'}[0]);
             next;
         }
 
@@ -500,7 +504,7 @@ sub fsolve {
         }
         if ( defined $cur ) {
             $res ||= 0;
-            if ( $ea eq 'OR' ) {
+            if ( $ea eq $self->{'operators'}[1] ) {
                 $res ||= $cur;
             } else {
                 $res &&= $cur;
