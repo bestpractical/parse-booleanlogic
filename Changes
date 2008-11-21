@@ -1,3 +1,11 @@
+0.05 2008-11-21
+    
+    * fix some parsing issues
+    * calling as class methods is NOT allowed anymore
+    * support for custom boolean operators
+    * support for custom parens
+    * more examples, tests and docs
+
 0.04 2008-09-16
 
     * fsolve method - filter+solve in one
