@@ -61,13 +61,7 @@ use constant STOP        => 16;
 my @tokens = qw[OPERAND OPERATOR OPEN_PAREN CLOSE_PAREN STOP];
 
 use Regexp::Common qw(delimited);
-my $re_operator    = qr{\b(?i:AND|OR)\b};
-my $re_open_paren  = qr{\(};
-my $re_close_paren = qr{\)};
-
-my $re_tokens      = qr{(?:$re_operator|$re_open_paren|$re_close_paren)};
-my $re_delim       = qr{$RE{delimited}{-delim=>qq{\'\"}}};
-my $re_operand     = qr{(?:$re_delim|(?!$re_tokens|["']).+?(?=$re_tokens|["']|\Z))+};
+my $re_delim = qr{$RE{delimited}{-delim=>qq{\'\"}}};
 
 =head1 METHODS
 
@@ -112,7 +106,8 @@ use global or cached one.
 
 sub new {
     my $proto = shift;
-    return bless {@_}, ref($proto) || $proto;
+    my $self = bless {}, ref($proto) || $proto;
+    return $self->init( @_ );
 }
 
 =head3 init
@@ -299,29 +294,31 @@ sub parse {
 
     while (1) {
         # State Machine
-        if ( ($want & OPERAND    ) && $string =~ /\G\s*($re_operand)/iogc ) {
-            my $m = $1;
-            $m=~ s/\s+$//;
-            $cb->{'operand'}->( $m );
-            $last = OPERAND;
-            $want = OPERATOR;
-            $want |= $depth? CLOSE_PAREN : STOP;
+        if ( $string =~ /\G\s+/gc ) {
         }
-        elsif ( ($want & OPERATOR   ) && $string =~ /\G\s*($re_operator)/iogc ) {
+        elsif ( ($want & OPERATOR   ) && $string =~ /$self->{'mre_operator'}/gc ) {
             $cb->{'operator'}->( $1 );
             $last = OPERATOR;
             $want = OPERAND | OPEN_PAREN;
         }
-        elsif ( ($want & OPEN_PAREN ) && $string =~ /\G\s*($re_open_paren)/iogc ) {
+        elsif ( ($want & OPEN_PAREN ) && $string =~ /$self->{'mre_open_paren'}/gc ) {
             $cb->{'open_paren'}->( $1 );
             $depth++;
             $last = OPEN_PAREN;
             $want = OPERAND | OPEN_PAREN;
         }
-        elsif ( ($want & CLOSE_PAREN) && $string =~ /\G\s*($re_close_paren)/iogc ) {
+        elsif ( ($want & CLOSE_PAREN) && $string =~ /$self->{'mre_close_paren'}/gc ) {
             $cb->{'close_paren'}->( $1 );
             $depth--;
             $last = CLOSE_PAREN;
+            $want = OPERATOR;
+            $want |= $depth? CLOSE_PAREN : STOP;
+        }
+        elsif ( ($want & OPERAND    ) && $string =~ /$self->{'mre_operand'}/gc ) {
+            my $m = $1;
+            $m=~ s/\s+$//;
+            $cb->{'operand'}->( $m );
+            $last = OPERAND;
             $want = OPERATOR;
             $want |= $depth? CLOSE_PAREN : STOP;
         }
