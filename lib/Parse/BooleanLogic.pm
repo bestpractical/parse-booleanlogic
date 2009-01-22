@@ -57,6 +57,7 @@ from L<Regexp::Common> with ' and " as delimiters.
 
 =cut
 
+use 5.008;
 use strict;
 use warnings;
 
