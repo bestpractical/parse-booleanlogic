@@ -63,7 +63,7 @@ use warnings;
 
 package Parse::BooleanLogic;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 use constant OPERAND     => 1;
 use constant OPERATOR    => 2;
