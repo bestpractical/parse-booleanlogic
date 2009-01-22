@@ -155,7 +155,7 @@ sub init {
         $self->{'re_close_paren'} = qr{\)};
     }
     $self->{'re_tokens'}  = qr{(?:$self->{'re_operator'}|$self->{'re_open_paren'}|$self->{'re_close_paren'})};
-# the next need some explanation
+# the following need some explanation
 # operand is something consisting of delimited strings and other strings that are not our major tokens
 # so it's a (delim string or anything until a token, ['"](start of a delim) or \Z) - this is required part
 # then you can have zero or more ocurences of above group, but with one exception - "anything" can not start with a token or ["']
@@ -517,6 +517,18 @@ sub fsolve {
 }
 
 1;
+
+=head1 ALTERNATIVES
+
+There are some alternative implementations available on the CPAN.
+
+=over 4
+
+=item L<Search::QueryParser> - similar purpose with several differences.
+
+=item Another?
+
+=back
 
 =head1 AUTHORS
 
