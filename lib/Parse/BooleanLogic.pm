@@ -398,10 +398,13 @@ sub bitmask_to_string {
 Several functions taking a tree of boolean expressions as returned by
 L<as_array> method and evaluating or changing it using a callback.
 
-=head3 filter $tree $callback
+=head3 filter $tree $callback @rest
 
 Filters a $tree using provided $callback. The callback is called for each operand
 in the tree and operand is left when it returns true value.
+
+Any additional arguments (@rest) are passed all the time into the callback.
+See example below.
 
 Boolean operators (AND/OR) are skipped according to parens and left first rule,
 for example:
@@ -416,10 +419,21 @@ for example:
 Returns new sub-tree. Original tree is not changed, but operands in new tree
 still refer to the same hashes in the original.
 
+Example:
+
+    my $filter = sub {
+        my ($condition, $some) = @_;
+        return 1 if $condition->{'operand'} eq $some;
+        return 0;
+    };
+    my $new_tree = $parser->filter( $tree, $filter, $some );
+
+See also L<solve|/"solve $tree $callback @rest">
+
 =cut
 
 sub filter {
-    my ($self, $tree, $cb, $inner) = @_;
+    my ($self, $tree, $cb, @rest) = @_;
 
     my $skip_next = 0;
 
@@ -428,7 +442,8 @@ sub filter {
         $skip_next-- and next if $skip_next > 0;
 
         if ( ref $entry eq 'ARRAY' ) {
-            my $tmp = $self->filter( $entry, $cb, 1 );
+            my $tmp = $self->filter( $entry, $cb, @rest );
+            $tmp = $tmp->[0] if @$tmp == 1;
             if ( !$tmp || (ref $tmp eq 'ARRAY' && !@$tmp) ) {
                 pop @res;
                 $skip_next++ unless @res;
@@ -436,7 +451,7 @@ sub filter {
                 push @res, $tmp;
             }
         } elsif ( ref $entry eq 'HASH' ) {
-            if ( $cb->( $entry ) ) {
+            if ( $cb->( $entry, @rest ) ) {
                 push @res, $entry;
             } else {
                 pop @res;
@@ -446,15 +461,18 @@ sub filter {
             push @res, $entry;
         }
     }
-    return $res[0] if @res == 1 && ($inner || ref $res[0] eq 'ARRAY');
+    return $res[0] if @res == 1 && ref $res[0] eq 'ARRAY';
     return \@res;
 }
 
-=head3 solve $tree $callback
+=head3 solve $tree $callback @rest
 
 Solves a boolean expression represented by a $tree using provided $callback.
 The callback is called for operands and should return a boolean value
 (0 or 1 will work).
+
+Any additional arguments (@rest) are passed all the time into the callback.
+See example below.
 
 Functions matrixes:
 
@@ -471,12 +489,21 @@ Whole branches of the tree can be skipped when result is obvious, for example:
 
 Returns result of the expression.
 
-See also L</fsolve>.
+Example:
+
+    my $solver = sub {
+        my ($condition, $some) = @_;
+        return 1 if $condition->{'operand'} eq $some;
+        return 0;
+    };
+    my $result = $parser->solve( $tree, $filter, $some );
+
+See also L<filter|/"filter $tree $callback @rest">.
 
 =cut
 
 sub solve {
-    my ($self, $tree, $cb) = @_;
+    my ($self, $tree, $cb, @rest) = @_;
 
     my ($res, $ea, $skip_next) = (0, $self->{'operators'}[1], 0);
     foreach my $entry ( @$tree ) {
@@ -491,9 +518,9 @@ sub solve {
 
         my $cur;
         if ( ref $entry eq 'ARRAY' ) {
-            $cur = $self->solve( $entry, $cb );
+            $cur = $self->solve( $entry, $cb, @rest );
         } else {
-            $cur = $cb->( $entry );
+            $cur = $cb->( $entry, @rest );
         }
         if ( $ea eq $self->{'operators'}[1] ) {
             $res ||= $cur;
@@ -504,19 +531,21 @@ sub solve {
     return $res;
 }
 
-=head3 fsolve $tree $callback
+=head3 fsolve $tree $callback @rest
 
 Does in filter+solve in one go. Callback can return undef to filter out an operand,
 and a defined boolean value to be used in solve.
 
+Any additional arguments (@rest) are passed all the time into the callback.
+
 Returns boolean result of the equation or undef if all operands have been filtered.
 
-See also L</filter> and L</solve>.
+See also L<filter|/"filter $tree $callback @rest"> and L<solve|/"solve $tree $callback @rest">.
 
 =cut
 
 sub fsolve {
-    my ($self, $tree, $cb) = @_;
+    my ($self, $tree, $cb, @rest) = @_;
 
     my ($res, $ea, $skip_next) = (undef, $self->{'operators'}[1], 0);
     foreach my $entry ( @$tree ) {
@@ -531,9 +560,9 @@ sub fsolve {
 
         my $cur;
         if ( ref $entry eq 'ARRAY' ) {
-            $cur = $self->fsolve( $entry, $cb );
+            $cur = $self->fsolve( $entry, $cb, @rest );
         } else {
-            $cur = $cb->( $entry );
+            $cur = $cb->( $entry, @rest );
         }
         if ( defined $cur ) {
             $res ||= 0;
