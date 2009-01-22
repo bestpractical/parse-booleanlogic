@@ -4,10 +4,21 @@ Parse::BooleanLogic - parser of boolean expressions
 
 =head1 SYNOPSIS
 
-    my $parser = new Parse::BooleanLogic;
-    my $tree = $parser->as_array( string => 'x = 10' );
-    $tree = $parser->as_array( string => 'x = 10 OR (x > 20 AND x < 30)' );
+    use Parse::BooleanLogic;
+    use Data::Dumper;
 
+    my $parser = Parse::BooleanLogic->new( operators => ['', 'OR'] );
+    my $tree = $parser->as_array( 'label:parser subject:"boolean logic"' );
+    print Dumper($tree);
+
+    $parser = new Parse::BooleanLogic;
+    $tree = $parser->as_array( 'x = 10' );
+    print Dumper($tree);
+
+    $tree = $parser->as_array( 'x = 10 OR (x > 20 AND x < 30)' );
+    print Dumper($tree);
+
+    # custom parsing using callbacks
     $parser->parse(
         string   => 'x = 10 OR (x > 20 AND x < 30)',
         callback => {
@@ -99,8 +110,8 @@ No matter which pair is used parens must be balanced in expression.
 =back
 
 This constructor compiles several heavy weight regular expressions
-so it's better avoid building object right before parsing, but instead
-use global or cached one.
+so it's better avoid building object each time right before parsing,
+but instead use global or cached one.
 
 =cut
 
@@ -192,9 +203,30 @@ Aditional options:
 
 =over 4
 
-=item operand_cb - custom operands handler
+=item operand_cb - custom operands handler, for example:
+
+    my $tree = $parser->as_array(
+        "some string",
+        operand_cb => sub {
+            my $op = shift;
+            if ( $op =~ m/^(!?)(label|subject|from|to):(.*)/ ) {
+                ...
+            } else {
+                die "You have an error in your query, in '$op'";
+            }
+        },
+    );
+
 
 =item error_cb - custom errors handler
+
+    my $tree = $parser->as_array(
+        "some string",
+        error_cb => sub {
+            my $msg = shift;
+            MyParseException->throw($msg);
+        },
+    );
 
 =back
 
@@ -361,14 +393,14 @@ sub bitmask_to_string {
     return join ' or ', @res;
 }
 
-=head2 Tree modifications
+=head2 Tree evaluation and modification
 
 Several functions taking a tree of boolean expressions as returned by
-L<as_array> method and changing it using a callback.
+L<as_array> method and evaluating or changing it using a callback.
 
 =head3 filter $tree $callback
 
-Filters a tree using provided callback. The callback is called for each operand
+Filters a $tree using provided $callback. The callback is called for each operand
 in the tree and operand is left when it returns true value.
 
 Boolean operators (AND/OR) are skipped according to parens and left first rule,
@@ -382,7 +414,7 @@ for example:
     X OR (Y AND Z) -> X OR Y
 
 Returns new sub-tree. Original tree is not changed, but operands in new tree
-still refer to the same hashes in original.
+still refer to the same hashes in the original.
 
 =cut
 
@@ -420,8 +452,9 @@ sub filter {
 
 =head3 solve $tree $callback
 
-Solves a boolean expression using provided callback. Callback is called
-for operands and should return a boolean value.
+Solves a boolean expression represented by a $tree using provided $callback.
+The callback is called for operands and should return a boolean value
+(0 or 1 will work).
 
 Functions matrixes:
 
