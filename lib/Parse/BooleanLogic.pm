@@ -52,8 +52,8 @@ things, for example:
 You can change literals used for boolean operators and parens. Read more
 about this in description of constructor's arguments.
 
-As you can see quoted strings are supported and based on delimited strings
-from L<Regexp::Common> with ' and " as delimiters.
+As you can see quoted strings are supported. Read about that below in
+L<Quoting and dequoting>.
 
 =cut
 
@@ -73,7 +73,7 @@ use constant STOP        => 16;
 my @tokens = qw[OPERAND OPERATOR OPEN_PAREN CLOSE_PAREN STOP];
 
 use Regexp::Common qw(delimited);
-my $re_delim = qr{$RE{delimited}{-delim=>qq{\'\"}}};
+my $re_delim = qr{$RE{delimited}{-delim=>qq{\'\"}}{-esc=>'\\'}};
 
 =head1 METHODS
 
@@ -392,6 +392,107 @@ sub bitmask_to_string {
     my $tmp = join ', ', splice @res, 0, -1;
     unshift @res, $tmp if $tmp;
     return join ' or ', @res;
+}
+
+=head2 Quoting and dequoting
+
+This module supports quoting with single quote ' and double ",
+literal quotes escaped with \.
+
+from L<Regexp::Common::delimited> with ' and " as delimiters.
+
+=head3 q, qq, fq and dq
+
+Four methods to work with quotes:
+
+=over 4
+
+=item q - quote a string with single quote character.
+
+=item qq - quote a string with double quote character.
+
+=item fq - quote with single if string has no single quote character, otherwisee use double quotes.
+
+=item dq - delete either single or double quotes from a string if it's quoted.
+
+=back
+
+All four works either in place or return result, for example:
+
+    $parser->q($str); # inplace
+
+    my $q = $parser->q($s); # $s is untouched
+
+=cut
+
+sub q {
+    if ( defined wantarray ) {
+        my $s = $_[1];
+        $s =~ s/(?=['\\])/\\/g;
+        return "'$s'";
+    } else {
+        $_[1] =~ s/(?=['\\])/\\/g;
+        substr($_[1], 0, 0) = "'";
+        $_[1] .= "'";
+        return;
+    }
+}
+
+sub qq {
+    if ( defined wantarray ) {
+        my $s = $_[1];
+        $s =~ s/(?=["\\])/\\/g;
+        return "\"$s\"";
+    } else {
+        $_[1] =~ s/(?=["\\])/\\/g;
+        substr($_[1], 0, 0) = '"';
+        $_[1] .= '"';
+        return;
+    }
+}
+
+sub fq {
+    if ( index( $_[1], "'" ) >= 0 ) {
+        if ( defined wantarray ) {
+            my $s = $_[1];
+            $s =~ s/(?=["\\])/\\/g;
+            return "\"$s\"";
+        } else {
+            $_[1] =~ s/(?=["\\])/\\/g;
+            substr($_[1], 0, 0) = '"';
+            $_[1] .= '"';
+            return;
+        }
+    } else {
+        if ( defined wantarray ) {
+            my $s = $_[1];
+            $s =~ s/(?=\\)/\\/g;
+            return "'$s'";
+        } else {
+            $_[1] =~ s/(?=\\)/\\/g;
+            substr($_[1], 0, 0) = "'";
+            $_[1] .= "'";
+            return;
+        }
+    }
+}
+
+sub dq {
+    return defined wantarray? $_[1] : ()
+        unless $_[1] =~ /^$re_delim$/o;
+
+    if ( defined wantarray ) {
+        my $s = $_[1];
+        my $q = substr( $s, 0, 1, '' );
+        substr( $s, -1   ) = '';
+        $s =~ s/\\([$q\\])/$1/g;
+        return $s;
+    } else {
+        my $q = substr( $_[1], 0, 1, '' );
+        substr( $_[1], -1 ) = '';
+        $_[1] =~ s/\\([$q\\])/$1/g;
+        return;
+    }
 }
 
 =head2 Tree evaluation and modification
