@@ -680,6 +680,22 @@ sub fsolve {
     return $res;
 }
 
+sub walk {
+    my ($self, $tree, $cb, @rest) = @_;
+
+    foreach my $entry ( @$tree ) {
+        if ( ref $entry eq 'ARRAY' ) {
+            $cb->{'open_paren'}->( @rest ) if $cb->{'open_paren'};
+            $self->walk( $entry, $cb, @rest );
+            $cb->{'close_paren'}->( @rest ) if $cb->{'close_paren'};
+        } elsif ( ref $entry eq 'HASH' ) {
+            $cb->{'operand'}->( $entry, @rest ) if $cb->{'operand'};
+        } else {
+            $cb->{'operator'}->( $entry, @rest ) if $cb->{'operator'};
+        }
+    }
+}
+
 1;
 
 =head1 ALTERNATIVES
