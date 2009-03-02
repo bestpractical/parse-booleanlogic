@@ -500,6 +500,43 @@ sub dq {
 Several functions taking a tree of boolean expressions as returned by
 L<as_array> method and evaluating or changing it using a callback.
 
+=head3 walk $tree $callbacks @rest
+
+A simple method for walking a $tree using four callbacks: open_paren,
+close_paren, operand and operator. All callbacks are optional.
+
+Example:
+
+    $parser->walk(
+        $tree,
+        {
+            open_paren => sub { ... },
+            close_paren => sub { ... },
+            ...
+        },
+        $some_context_argument, $another, ...
+    );
+
+Any additional arguments (@rest) are passed all the time into callbacks.
+
+=cut
+
+sub walk {
+    my ($self, $tree, $cb, @rest) = @_;
+
+    foreach my $entry ( @$tree ) {
+        if ( ref $entry eq 'ARRAY' ) {
+            $cb->{'open_paren'}->( @rest ) if $cb->{'open_paren'};
+            $self->walk( $entry, $cb, @rest );
+            $cb->{'close_paren'}->( @rest ) if $cb->{'close_paren'};
+        } elsif ( ref $entry eq 'HASH' ) {
+            $cb->{'operand'}->( $entry, @rest ) if $cb->{'operand'};
+        } else {
+            $cb->{'operator'}->( $entry, @rest ) if $cb->{'operator'};
+        }
+    }
+}
+
 =head3 filter $tree $callback @rest
 
 Filters a $tree using provided $callback. The callback is called for each operand
@@ -680,20 +717,61 @@ sub fsolve {
     return $res;
 }
 
-sub walk {
+=head3 partial_solve $tree $callback @rest
+
+Partially solve a $tree. Callback can return undef or a new expression
+and a defined boolean value to be used in solve.
+
+Returns either result or array reference with expression.
+
+Any additional arguments (@rest) are passed all the time into the callback.
+
+=cut
+
+sub partial_solve {
     my ($self, $tree, $cb, @rest) = @_;
 
+    my @res;
+
+    my ($last, $ea, $skip_next) = (0, $self->{'operators'}[1], 0);
     foreach my $entry ( @$tree ) {
+        $skip_next-- and next if $skip_next > 0;
+        unless ( ref $entry ) {
+            $ea = lc $entry;
+            unless ( ref $last ) {
+                $skip_next++ if
+                       ( $last && $ea eq $self->{'operators'}[1])
+                    || (!$last && $ea eq $self->{'operators'}[0]);
+            } else {
+                push @res, $entry;
+            }
+            next;
+        }
+
         if ( ref $entry eq 'ARRAY' ) {
-            $cb->{'open_paren'}->( @rest ) if $cb->{'open_paren'};
-            $self->walk( $entry, $cb, @rest );
-            $cb->{'close_paren'}->( @rest ) if $cb->{'close_paren'};
-        } elsif ( ref $entry eq 'HASH' ) {
-            $cb->{'operand'}->( $entry, @rest ) if $cb->{'operand'};
+            $last = $self->solve( $entry, $cb, @rest );
+            # drop parens with one condition inside
+            $last = $last->[0] if ref $last && @$last == 1;
         } else {
-            $cb->{'operator'}->( $entry, @rest ) if $cb->{'operator'};
+            $last = $cb->( $entry, @rest );
+            $last = $entry unless defined $last;
+        }
+        unless ( ref $last ) {
+            if ( $ea eq $self->{'operators'}[0] ) {
+                # (...) AND 0
+                unless ( $last ) { @res = () } else { pop @res };
+            }
+            elsif ( $ea eq $self->{'operators'}[1] ) {
+                # (...) OR 1
+                if ( $last ) { @res = () } else { pop @res };
+            }
+        } else {
+            push @res, $last;
         }
     }
+
+    return $last unless @res; # solution
+    return \@res; # more than one condition
 }
 
 1;
