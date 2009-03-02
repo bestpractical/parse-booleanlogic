@@ -18,5 +18,7 @@ t/custom_parens.t
 t/filter.t
 t/fsolve.t
 t/load.t
+t/partial_solve.t
+t/quotes.t
 t/solve.t
 t/utils.pl
