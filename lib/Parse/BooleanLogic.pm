@@ -529,7 +529,7 @@ sub walk {
             $cb->{'open_paren'}->( @rest ) if $cb->{'open_paren'};
             $self->walk( $entry, $cb, @rest );
             $cb->{'close_paren'}->( @rest ) if $cb->{'close_paren'};
-        } elsif ( ref $entry eq 'HASH' ) {
+        } elsif ( ref $entry ) {
             $cb->{'operand'}->( $entry, @rest ) if $cb->{'operand'};
         } else {
             $cb->{'operator'}->( $entry, @rest ) if $cb->{'operator'};
@@ -589,7 +589,7 @@ sub filter {
             } else {
                 push @res, $tmp;
             }
-        } elsif ( ref $entry eq 'HASH' ) {
+        } elsif ( ref $entry ) {
             if ( $cb->( $entry, @rest ) ) {
                 push @res, $entry;
             } else {

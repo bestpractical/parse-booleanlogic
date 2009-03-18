@@ -1,3 +1,7 @@
+0.09
+
+    * don't assume that operand is a HASH, it can be any reference
+
 0.08 2009-03-02
 
     * partial_solve and walk methods
