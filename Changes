@@ -1,4 +1,4 @@
-0.09
+0.09 2009-03-19
 
     * don't assume that operand is a HASH, it can be any reference
 
